@@ -10,7 +10,7 @@ library(org.Hs.eg.db)
 library(org.Mm.eg.db)
 library(ggplot2)
 library(devtools)
-remotes::install_github("wenbostar/metaX")  # 连接github
+remotes::install_github("wenbostar/metaX")  # github
 BiocManager::install("wenbostar/metaX")
 source("./02_Code/QC_PCA.R")
 source("./02_Code/QC_boxplot.R")
