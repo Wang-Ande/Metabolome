@@ -1,0 +1,26 @@
+{
+    "id": "DBE720BE",
+    "path": "D:/download/RStudio/AML_project/Metabolome/02_Code/Normalization.R",
+    "project_path": "02_Code/Normalization.R",
+    "type": "r_source",
+    "hash": "0",
+    "contents": "",
+    "dirty": false,
+    "created": 1738751528874.0,
+    "source_on_save": false,
+    "relative_order": 1,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "224,42",
+        "scrollLine": "0"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1740575570,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1740575570482,
+    "read_only": false,
+    "read_only_alternatives": []
+}
