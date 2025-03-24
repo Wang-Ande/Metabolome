@@ -5,6 +5,7 @@ library(ggrepel)
 library(readr)
 library(dplyr)
 library(openxlsx)
+library(pmp)
 library(mixOmics)
 library(metaX)
 source("./02_Code/QC_PCA.R") 
@@ -16,8 +17,8 @@ source("./02_Code/run_enrichment_analysis.R")
 # 1. Data input ----
 ## 1.1 Group input ----
 # 导入分组信息
-data_group <- read_excel("./01_Data/sam_qc_infor_neg.xlsx")
-data_group$id <- gsub("neg_","", data_group$id)            # 去除样本id多余信息
+data_group <- read.xlsx("./01_Data/01_MetQuant/sam_infor_combined.xlsx")
+data_group$id <- gsub("neg_","", data_group$id)            
 data_group$id <- gsub("cas_","", data_group$id)
 data_group <- as.data.frame(data_group)
 
@@ -27,37 +28,34 @@ data_group_OCI_VEN[grep("WT",data_group_OCI_VEN$id),2] <- "WT"
 data_group_molm13_VEN[-grep("WT",data_group_molm13_VEN$id),2] <- "6W"
 
 # 配色设置 
-value_colour <- c(#"6W" = "#E64B35FF",
-                  "2W" = "#F2A200",
-                  "WT" = "#4DBBD5FA")
-                  #"OCI" = "#F2A200",
+value_colour <- c("High" = "#E64B35FF",
+                  "Low" = "#F2A200",
+                  "Con" = "#4DBBD5FA")
                   #"QC" = "#8D8D8D"
 rownames(data_group) <- data_group$id
 
 
 
 ## 1.2 meta matrix input ----
-data_input <- read.xlsx("./01_Data/meta_intensity_class_neg.xlsx")
+data_input <- read.csv("./01_Data/01_MetQuant/meta_intensity_combined.csv",row.names = 1)
 data_input <- as.data.frame(data_input)
-rownames(data_input) <- data_input$Name
-data_input <- data_input[,-grep("4w",colnames(data_input))]   # 删除4w样本
 colnames(data_input) <- gsub("neg_","", colnames(data_input)) # 去除样本id多余信息
 colnames(data_input) <- gsub("cas_","", colnames(data_input))
 
 # 保留注释
 data_anno <- data_input[,1:13]
 data_anno <- as.data.frame(data_anno)
-rownames(data_anno) <- data_anno$Name
-data_input <- data_input[,-1:-13]
-write.xlsx(data_anno,file = "./01_Data/data_anno_pos.xlsx")
+data_input <- data_input[,-31]
+write.xlsx(data_anno,file = "./01_Data/meta_anno_combined.xlsx")
 
 
 # 2. Normalization -----------------------------------------------------------
 # 设置输出目录
-dir.create("./03_Result/QC/neg/OCI/6W_WT")
-dir <- "./03_Result/QC/neg/OCI/2W_WT/"
+dir.create("./03_Result/QC/combined/OCI_M2")
+dir_qc <- "./03_Result/QC/combined/OCI_M2/"
 
 ## 2.1 Intensity normalization ----
+# method 1
 log_data <- log2(data_input)
 
 # 计算校正前各样本的intensity median
@@ -82,60 +80,58 @@ column_medians_2
 
 # 返回log2之前的数据
 data_input_norm <- 2 ^ data_after
-write.xlsx(data_input_norm,file = "./01_Data/meta_intensity_norm_class_pos.xlsx")
+write.csv(data_input_norm,file = "./01_Data/01_MetQuant/meta_intensity_median_combined.csv")
+
+# method 2
+# 使用 PQN 进行归一化，指定 QC 样本为参考样本
+class <- colnames(data_input)
+colnames(data_input)[30] <- "QC"
+normalized_data <- pmp::pqn_normalisation(df = data_input,
+                                          classes = class,
+                                          qc_label = "QC",
+                                          ref_method = "mean")
+# methods 3
+# 计算 QC 样本的中位数
+qc_index <- c(28,29,30)
+qc_medians <- apply(data_input[, qc_index], 1, median, na.rm = TRUE)
+
+# 进行 QC-based Median 矫正
+normalized_data <- sweep(data_input, 1, qc_medians, "/")
 
 # 3. QC --------------------------------------------------------------------------
 # QC函数data_group项需要满足包含id,group列！！！！！！！！！！！！！！！！！！！
+colnames(normalized_data)[30] <- "QC3"
+data_qc <- data_input
 colnames(data_group)
-data_group <- data_group[,-(3:4)]
+group_qc <- data_group[,c(1,3)]
+colnames(group_qc)[2] <- "group"
+group_qc <- group_qc[grep("OCI",group_qc$id),]
+
 ## 3.1 Boxplot -----------------------------------------------------------------
 # 函数进行了log2
-pdf(file = paste0(dir,"QC_boxplot_normalization.pdf"),
+pdf(file = paste0(dir_qc,"QC_boxplot.pdf"),
     width = 6,
     height = 4)
-QC_boxplot(data_input,data_group = data_group_OCI_2w,
+QC_boxplot(data_qc,data_group = group_qc,
            value_colour = value_colour,
-           title = "normalized data")
-dev.off()
-
-pdf(file = paste0(dir,"QC_boxplot_normalization.pdf"),
-    width = 6,
-    height = 4)
-QC_boxplot(data_input_norm,data_group = data_group,
-           value_colour = value_colour,
-           title = "normalized data")
+           title = "non-normalized data")
 dev.off()
 
 ## 3.2 Heatmap -----------------------------------------------------------------
 # 函数中有log2（x+1）
-pdf(file = paste0(dir,"QC_heatmap_normalization.pdf"),
+pdf(file = paste0(dir_qc,"QC_heatmap.pdf"),
     width = 6,
     height = 6)
-QC_heatmap(data = data_input,data_group = data_group_OCI_2w,
-           value_colour = value_colour)
-dev.off()
-
-pdf(file = paste0(dir,"QC_heatmap_normalization.pdf"),
-    width = 6,
-    height = 6)
-QC_heatmap(data = data_input_norm,data_group = data_group,
+QC_heatmap(data = data_qc,data_group = group_qc,
            value_colour = value_colour)
 dev.off()
 
 ## 3.3 PCA ---------------------------------------------------------------------
-pdf(file = paste0(dir,"QC_pca_normalization.pdf"),
+pdf(file = paste0(dir_qc,"QC_pca.pdf"),
     width = 7,
     height = 7)
-QC_PCA(data = log2(data_input+1),
-       data_group = data_group_OCI_2w,
-       value_colour = value_colour)
-dev.off()
-
-pdf(file = paste0(dir,"QC_pca_normalization.pdf"),
-    width = 7,
-    height = 7)
-QC_PCA(data = data_input_norm,
-       data_group = data_group,
+QC_PCA(data = log2(data_qc+1),
+       data_group = group_qc,
        value_colour = value_colour)
 dev.off()
 
@@ -143,11 +139,11 @@ dev.off()
 # QC样本中有超过70%的潜在特征峰（化合物）的相对标准偏差（RSD）不超过30%,说明检测体系的稳定性良好
 if(T){
 # 提取 QC 样本
-data_qc <- data_input_norm[,grep("QC",colnames(data_input_norm))]
+qc_sam <- data_input[,grep("QC",colnames(data_input))]
 
 # 计算 QC 样本的相对标准偏差 (RSD)
-rsd <- apply(data_qc, 1, function(x) sd(x) / mean(x) * 100)
-qc_metrics <- data.frame(Metabolite = rownames(data_qc), RSD = rsd)
+rsd <- apply(qc_sam, 1, function(x) sd(x) / mean(x) * 100)
+qc_metrics <- data.frame(Metabolite = rownames(qc_sam), RSD = rsd)
 
 # 判断稳定性是否良好：超过 70% 的潜在特征峰 RSD <= 30%
 valid_ratio <- mean(rsd <= 30)
