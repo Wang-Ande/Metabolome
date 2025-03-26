@@ -7,19 +7,19 @@ library(dplyr)
 library(openxlsx)
 library(pmp)
 library(mixOmics)
-library(metaX)
+# library(metaX)
 source("./02_Code/QC_PCA.R") 
 source("./02_Code/QC_boxplot.R")
 source("./02_Code/QC_heatmap.R")
 source("./02_Code/run_DE.R")
-source("./02_Code/run_enrichment_analysis.R")
+# source("./02_Code/run_enrichment_analysis.R")
 
 # 1. Data input ----
 ## 1.1 Group input ----
 # 导入分组信息
-data_group <- read.xlsx("./01_Data/01_MetQuant/sam_infor_combined.xlsx")
-data_group$id <- gsub("neg_","", data_group$id)            
-data_group$id <- gsub("cas_","", data_group$id)
+data_group <- read.xlsx("./01_Data/01.MetQuant/sam_infor_combined.xlsx")
+# data_group$id <- gsub("neg_","", data_group$id)            
+# data_group$id <- gsub("cas_","", data_group$id)
 data_group <- as.data.frame(data_group)
 
 # 提取分组样本
@@ -35,9 +35,8 @@ value_colour <- c("High" = "#E64B35FF",
 rownames(data_group) <- data_group$id
 
 
-
 ## 1.2 meta matrix input ----
-data_input <- read.csv("./01_Data/01_MetQuant/meta_intensity_combined.csv",row.names = 1)
+data_input <- read.csv("./01_Data/01.MetQuant/meta_intensity_combined.csv",row.names = 1)
 data_input <- as.data.frame(data_input)
 colnames(data_input) <- gsub("neg_","", colnames(data_input)) # 去除样本id多余信息
 colnames(data_input) <- gsub("cas_","", colnames(data_input))
@@ -50,10 +49,6 @@ write.xlsx(data_anno,file = "./01_Data/meta_anno_combined.xlsx")
 
 
 # 2. Normalization -----------------------------------------------------------
-# 设置输出目录
-dir.create("./03_Result/QC/combined/OCI_M2")
-dir_qc <- "./03_Result/QC/combined/OCI_M2/"
-
 ## 2.1 Intensity normalization ----
 # method 1
 log_data <- log2(data_input)
@@ -99,9 +94,12 @@ qc_medians <- apply(data_input[, qc_index], 1, median, na.rm = TRUE)
 normalized_data <- sweep(data_input, 1, qc_medians, "/")
 
 # 3. QC --------------------------------------------------------------------------
+# 设置输出目录
+dir.create("./03_Result/QC/combined/OCI_M2")
+dir_qc <- "./03_Result/1.QC/combined/OCI_M2/"
+
 # QC函数data_group项需要满足包含id,group列！！！！！！！！！！！！！！！！！！！
-colnames(normalized_data)[30] <- "QC3"
-data_qc <- data_input
+data_qc <- data_filter
 colnames(data_group)
 group_qc <- data_group[,c(1,3)]
 colnames(group_qc)[2] <- "group"
@@ -109,17 +107,17 @@ group_qc <- group_qc[grep("OCI",group_qc$id),]
 
 ## 3.1 Boxplot -----------------------------------------------------------------
 # 函数进行了log2
-pdf(file = paste0(dir_qc,"QC_boxplot.pdf"),
+pdf(file = paste0(dir_qc,"QC_boxplot_filter.pdf"),
     width = 6,
     height = 4)
 QC_boxplot(data_qc,data_group = group_qc,
            value_colour = value_colour,
-           title = "non-normalized data")
+           title = "normalized data")
 dev.off()
 
 ## 3.2 Heatmap -----------------------------------------------------------------
 # 函数中有log2（x+1）
-pdf(file = paste0(dir_qc,"QC_heatmap.pdf"),
+pdf(file = paste0(dir_qc,"QC_heatmap_filter.pdf"),
     width = 6,
     height = 6)
 QC_heatmap(data = data_qc,data_group = group_qc,
@@ -127,7 +125,7 @@ QC_heatmap(data = data_qc,data_group = group_qc,
 dev.off()
 
 ## 3.3 PCA ---------------------------------------------------------------------
-pdf(file = paste0(dir_qc,"QC_pca.pdf"),
+pdf(file = paste0(dir_qc,"QC_pca_filter.pdf"),
     width = 7,
     height = 7)
 QC_PCA(data = log2(data_qc+1),
@@ -152,7 +150,12 @@ valid_ratio <- mean(rsd <= 30)
 print(ifelse(valid_ratio > 0.7, "检测体系稳定性良好", "检测体系稳定性较差"))
 }
 
-# 对所有代谢物进行Shapiro-Wilk检验
+# 去除QC样本中RSD超过30%的样本
+Good_metebo <- qc_metrics[qc_metrics$RSD <= 30,]
+data_filter <- data_input[rownames(Good_metebo),]
+
+## 3.5 Shapiro-Wilk ----
+# 对所有代谢物进行Shapiro-Wilk检验(判断是否满足正态性)
 results_1 <- apply(data_input[,1:8], 1, function(x) shapiro.test(x)$p.value)
 table(results_1<0.05)
 
@@ -161,24 +164,13 @@ table(results_1<0.05)
 # 根据分组选择要进行差异分析的组别
 source("./02_Code/run_DE.R")
 table(data_group$group)
-targeted_group <- data_group_p53
-
-# VEN-WT 组别
-targeted_group$group <- paste0(targeted_group$group, "_VEN")
-targeted_group[grep("WT",targeted_group$id),2] <- gsub("_VEN","_WT",
-                                                       targeted_group[grep("WT",targeted_group$id),2])
+targeted_group <- data_group[grep("MOLM13",data_group$id),]
 table(targeted_group$group)
-
-# 2W/6W-WT 组别
-targeted_group[grep("6w",targeted_group$id),2] <- gsub("_VEN","_6W",
-                                                       targeted_group[grep("6w",targeted_group$id),2])
-table(targeted_group$group)
-
 
 #dir.create("./03_Result/DE/OCI_AML2")
 ## 4.1 Set group ----
-group_1 <- "TP53"          # 实验组
-group_2 <- "WT"          # 对照组
+group_1 <- "TP53"        # treatment
+group_2 <- "WT"          # control
 dir_DE <- "./03_Result/DE/pos/TP53_vs_WT/"
 
 # 若选择wilcoxon检验，检查是否有平局值 
@@ -199,45 +191,19 @@ result_merge <- run_DE(data = data_input,
 table(result_merge$change)
 
 ## 4.2 PLS-DA ----
-# 载入metaX package
-# 定量数据第一列列名必须为“name”
-# 分组数据QC样本分组必须设置为"NA"
-para <- new("metaXpara")
-pfile <- "./01_Data/meta_intensity_class_neg.txt"
-sfile <- "./01_Data/sam_qc_infor_neg.txt"
-rawPeaks(para) <- read.delim(pfile,check.names = FALSE)
-sampleListFile(para) <- sfile
-para <- reSetPeaksData(para)
-#para <- missingValueImpute(para)
-para <- metaX::normalize(para,method="pqn")
-plsdaPara <- new("plsDAPara")
-# 选择最优主成分
-best_comp <- selectBestComponent(
-  para = para,               # 输入的metaXpara对象
-  np = 10,                     # 最大主成分数为10
-  sample = c("MOLM13_6W", 
-             "MOLM13_WT"),       # 选择的样本组
-  scale = "uv",           # 数据标准化方法：pareto
-  valueID = "value",          # 代谢物定量数据列名称
-  k = 7                       # 7折交叉验证
-)
-plsdaPara@nperm <- 200
+# 1. 交叉验证评估（稳定性能指标）
+set.seed(123) 
+perf.plsda <- perf(plsda_model, validation = "Mfold", folds = 7, 
+                   nrepeat = 50, progressBar = TRUE) # TRUE显示进度
+plot(perf.plsda, sd = TRUE, legend.position = "bottom")
 
-plsda.res <- runPLSDA(para = para,plsdaPara = plsdaPara,
-                      sample = c("MOLM13_6W","MOLM13_WT"),valueID="value")
-cat("R2Y: ",plsda.res$plsda$res$R2,"\n")
-## R2Y: 0.9840716
-
-cat("Q2Y: ",plsda.res$plsda$res$Q2,"\n")
-## Q2Y: 0.9806666
-
-## permutation test
-
-cat("P-value R2Y: ",plsda.res$pvalue$R2,"\n")
-## P-value R2Y: 0
-
-cat("P-value Q2Y: ",plsda.res$pvalue$Q2,"\n")
-## P-value Q2Y: 0
+# 2. 置换检验（计算显著性）
+set.seed(123)
+perm.plsda <- permute(plsda(X, Y, ncomp = 3), 
+                      validation = "Mfold", 
+                      folds = 7, 
+                      nrepeat = 200)  # 置换200次
+plot(perm.plsda)  # 查看p值
 
 # PLS-DA Loading Plot 
 
