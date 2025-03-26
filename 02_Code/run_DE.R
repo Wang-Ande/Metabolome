@@ -9,7 +9,7 @@ run_DE <- function(data, data_group, data_anno=NULL, group_1, group_2, log2,
   library(mixOmics)
   if (!all(c("id", "group") %in% colnames(data_group)))
     stop("data_group must contain 'id' and 'group' columns")
-  if (!all(group_1 %in% data_group$group) | !all(group_2 %in% data_group$group))
+  if (!all(group_1 %in% data_group$group) || !all(group_2 %in% data_group$group))
     stop("Specified groups not found in data_group")
   
   #  创建输出目录 ----
@@ -17,13 +17,9 @@ run_DE <- function(data, data_group, data_anno=NULL, group_1, group_2, log2,
   if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
   
   #  提取目标样本 ----
+  message("Extracting target samples...")
   samples <- data_group$id[data_group$group %in% c(group_1, group_2)]
   target_data <- data[, colnames(data) %in% samples, drop=FALSE]
-  
-  # log2
-  if(!log2){
-  target_data <- log2(target_data)
-  }
   
   #  分组样本获取 ----
   group_samples <- list(
@@ -32,6 +28,7 @@ run_DE <- function(data, data_group, data_anno=NULL, group_1, group_2, log2,
   )
   
   #  检查样本存在性 ----
+  message("Checking sample existence...")
   group_samples <- lapply(group_samples, function(x) x[x %in% colnames(target_data)])
   if (any(lengths(group_samples) < 2)) 
     stop("At least 2 samples required in each group for t-test")
@@ -43,14 +40,11 @@ run_DE <- function(data, data_group, data_anno=NULL, group_1, group_2, log2,
     stringsAsFactors = FALSE
   )
   
-  #  computer fold change ----
-  if(!log2){
-  result_df$logFC <- result_df$meanA - result_df$meanB
-  }
-  else{
-    result_df$FC <- result_df$meanA / result_df$meanB
-    result_df$logFC <- log2(result_df$FC)
-      }
+  #  计算logFC ----
+  message("Calculating logFC...")
+  result_df$FC <- result_df$meanA / result_df$meanB
+  result_df$logFC <- log2(result_df$FC)
+
     
   # 处理特殊值
   #result_df$log2foldchange[is.na(result_df$log2foldchange)] <- 0
@@ -73,10 +67,21 @@ run_DE <- function(data, data_group, data_anno=NULL, group_1, group_2, log2,
     }
   }
   
+  # log2 转换 ----
+    if (log2) {
+      # 检查是否存在非正数
+      if (any(target_data <= 0, na.rm = TRUE)) {
+        stop("Data contains non-positive values. Cannot compute log2. Consider adding a pseudocount or filtering data.")
+      }
+      target_data <- log2(target_data)
+    }
   
-  result_df$pvalue <- apply(target_data, 1, safe_stat_test)
+  # 计算 P-value ----
+    message("Calculating p-values...")
+    result_df$pvalue <- apply(target_data, 1, safe_stat_test)
   
   #  多重检验校正 ----
+    message("Performing multiple testing correction...") 
   if (requireNamespace("fdrtool", quietly = TRUE)) {
     qobj <- fdrtool::fdrtool(result_df$pvalue, statistic = "pvalue", plot = FALSE)
     result_df$qvalue <- qobj$qval
@@ -86,6 +91,7 @@ run_DE <- function(data, data_group, data_anno=NULL, group_1, group_2, log2,
   
   
   #  加change列 ---- 
+    message("Adding change column...")
   # 标记上下调基因，可根据需求设定阈值
   logFC = logfc_threshold
   P.Value = pvalue_threshold
@@ -122,6 +128,7 @@ run_DE <- function(data, data_group, data_anno=NULL, group_1, group_2, log2,
   result_df <- cbind(data_anno_filtered[match(rownames(result_df), rownames(data_anno_filtered)), ], result_df)
   
   #  Res Output ----
+  message("Writing results to file...")
   write.csv(result_df, file = file.path(output_dir, "DE_results.csv"))
   
   
