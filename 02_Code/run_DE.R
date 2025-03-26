@@ -21,7 +21,7 @@ run_DE <- function(data, data_group, data_anno=NULL, group_1, group_2, log2,
   target_data <- data[, colnames(data) %in% samples, drop=FALSE]
   
   # log2
-  if(log2){
+  if(!log2){
   target_data <- log2(target_data)
   }
   
@@ -44,7 +44,7 @@ run_DE <- function(data, data_group, data_anno=NULL, group_1, group_2, log2,
   )
   
   #  computer fold change ----
-  if(log2){
+  if(!log2){
   result_df$logFC <- result_df$meanA - result_df$meanB
   }
   else{
@@ -72,6 +72,7 @@ run_DE <- function(data, data_group, data_anno=NULL, group_1, group_2, log2,
       stop("Invalid test method. Choose either 't-test' or 'wilcoxon'.")
     }
   }
+  
   
   result_df$pvalue <- apply(target_data, 1, safe_stat_test)
   
