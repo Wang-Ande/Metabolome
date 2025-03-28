@@ -252,6 +252,16 @@ result_merge <- read.csv("./03_Result/2.DE/combined/OCI_M2/Low_vs_Con/DE_results
 result_merge$VIP <- vip_scores
 write.csv(result_merge, file = paste0(dir_DE,"DE_results.csv"))
 
+# 将VIP<1 的change列改为 stable
+result_merge <- read.csv("./03_Result/2.DE/combined/OCI_M2/Low_vs_Con/DE_results.csv",row.names = 1)
+table(result_merge$change)
+result_merge <- result_merge %>%
+  mutate(change = ifelse(VIP < 1, "stable", change))
+table(result_merge$change)
+write.csv(result_merge, file = paste0(dir_DE,"DE_results.csv"))
+group_1 <- "Low"        # treatment
+group_2 <- "Con"        # control
+
 ## 4.3 Volc Plot ----
 # change列因子化
 result_merge$change <- factor(
@@ -298,5 +308,24 @@ ggsave(filename = paste0(dir_DE,"/volc.pdf"),
        width = 6, height = 5)
 
 # 5. KEGG GO -----------------------------------------------------------------
+library(clusterProfiler)
+library(org.Hs.eg.db)  # 人类数据库，其他物种可更换
+library(KEGGREST)
+library(pathview)
+
+# Metabolites list ----
+DE_res <- read.csv()
+
+
+
+
+metabolites <- c("C00031", "C00022", "C00024", "C00186", "C00049")  # 你的 KEGG ID 列表
+
+# Enrichment ----
+kegg_enrich <- enrichKEGG(gene = metabolites, 
+                          organism = "hsa",  # 人类
+                          keyType = "kegg",
+                          pvalueCutoff = 0.05,
+                          qvalueCutoff = 0.2)
 
 
