@@ -22,11 +22,6 @@ data_group <- read.xlsx("./01_Data/01.MetQuant/sam_infor_combined.xlsx")
 # data_group$id <- gsub("cas_","", data_group$id)
 data_group <- as.data.frame(data_group)
 
-# 提取分组样本
-data_group_OCI_VEN <- data_group[c(9:17),]
-data_group_OCI_VEN[grep("WT",data_group_OCI_VEN$id),2] <- "WT"
-data_group_molm13_VEN[-grep("WT",data_group_molm13_VEN$id),2] <- "6W"
-
 # 配色设置 
 value_colour <- c("High" = "#E64B35FF",
                   "Low" = "#F2A200",
@@ -46,7 +41,7 @@ data_anno <- data_input[,1:13]
 data_anno <- as.data.frame(data_anno)
 data_input <- data_input[,-31]
 write.xlsx(data_anno,file = "./01_Data/meta_anno_combined.xlsx")
-
+data_anno <- read.xlsx("./01_Data/01.MetQuant/meta_anno_combined.xlsx",rowNames = TRUE)
 
 # 2. Normalization -----------------------------------------------------------
 ## 2.1 Intensity normalization ----
@@ -164,19 +159,19 @@ table(results_1<0.05)
 # 根据分组选择要进行差异分析的组别
 source("./02_Code/run_DE.R")
 table(data_group$group)
-targeted_group <- data_group[grep("MOLM13",data_group$id),]
+targeted_group <- data_group[grep("OCI_M2",data_group$id),]
 table(targeted_group$group)
 
 #dir.create("./03_Result/DE/OCI_AML2")
 ## 4.1 Set group ----
-group_1 <- "TP53"        # treatment
-group_2 <- "WT"          # control
-dir_DE <- "./03_Result/DE/pos/TP53_vs_WT/"
+group_1 <- "Low"        # treatment
+group_2 <- "Con"        # control
 
 # 若选择wilcoxon检验，检查是否有平局值 
 anyDuplicated(data_input_norm)    # 结果大于0代表有
 
-result_merge <- run_DE(data = data_input,
+## 4.1 LogFC & P-value ----
+result_merge <- run_DE(data = data_filter,
                        data_group = targeted_group,
                        data_anno = data_anno,
                        group_1 = group_1,group_2 = group_2,
@@ -186,26 +181,76 @@ result_merge <- run_DE(data = data_input,
                        qvalue_threshold = NULL,
                        test_method = "t-test",     # "t-test" or "wilcoxon"
                        paired = FALSE ,            # 是否配对检验，TRUE or FALSE 必须为逻辑值
-                       dir = "03_result/DE/pos/") # 每次需要更改
+                       dir = "03_result/2.DE/combined/OCI_M2/") # 每次需要更改
 # 统计上下调Meta个数
 table(result_merge$change)
 
 ## 4.2 PLS-DA ----
-# 1. 交叉验证评估（稳定性能指标）
-set.seed(123) 
-perf.plsda <- perf(plsda_model, validation = "Mfold", folds = 7, 
-                   nrepeat = 50, progressBar = TRUE) # TRUE显示进度
-plot(perf.plsda, sd = TRUE, legend.position = "bottom")
+library(mixOmics)
+# Input Normalization Data
+# Data format:samples in rows and variables in columns.
+# X: gene expression matrix 
+# Y: factor indicating sample class membership
 
-# 2. 置换检验（计算显著性）
+# load data
+X <- read.csv("./03_Result/2.DE/combined/OCI_M2/Low_vs_Con/DE_results.csv",row.names = 1)
+X <- X[,grep("OCI_M2_WT|OCI_M2_2W|OCI_M2_4W",colnames(X))]
+X <- t(X)
+X <- log2(X)
+
+Y <- targeted_group[grep("Con|Low",targeted_group$group),]
+Y <- factor(Y$group,levels = c("Con","Low"))
+
+# check
+dim(X); length(Y)
+summary(Y)
+
+# approach 1 mixOmics
+# Initial exploration with PCA 
+pca <- pca(X, ncomp = 3, scale = TRUE)
+plotIndiv(pca, group = data_group$cell.line, ind.names = FALSE,
+          legend = TRUE, 
+          title = 'PCA')
+ggsave(paste0(dir_DE,"PCA.pdf"))
+
+plsda <- mixOmics::plsda(X,Y, ncomp = 2)
+vip <- mixOmics::vip(plsda)
+
+# 交叉验证评估（稳定性能指标）
+set.seed(123)  
+perf.plsda <- mixOmics::perf(plsda, validation = "Mfold",folds = 7,# n<3,时，k=2n
+                             nrepeat = 50, progressBar = FALSE) # TRUE显示进度
+plot(perf.plsda, sd = TRUE, legend.position = 'horizontal')
+
+final.plsda <- plsda(X,Y, ncomp = 2)
+
+plotIndiv(final.plsda, ind.names = FALSE, legend=TRUE,
+          comp=c(1,2), ellipse = TRUE, 
+          title = 'PLS-DA',
+          X.label = 'comp 1', Y.label = 'comp 2')
+
+# approach 2 ropls
+library(ropls)
+# PLS-DA 分析
 set.seed(123)
-perm.plsda <- permute(plsda(X, Y, ncomp = 3), 
-                      validation = "Mfold", 
-                      folds = 7, 
-                      nrepeat = 200)  # 置换200次
-plot(perm.plsda)  # 查看p值
+plsda_model <- opls(X, Y, predI = 2, crossvalI = 7, permI = 200,scaleC = "pareto")
 
-# PLS-DA Loading Plot 
+# PLS-DA
+# 5 samples x 1120 variables and 1 response
+# standard scaling of predictors and response(s)
+# R2X(cum) R2Y(cum) Q2(cum)   RMSEE pre ort  pR2Y   pQ2
+# Total    0.645        1   0.966 0.00685   2   0 0.355 0.135
+
+# 提取 VIP 值
+vip_scores <- plsda_model@vipVn
+table(vip_scores > 1)
+summary(vip_scores)
+
+# res output
+dir_DE <- "./03_Result/2.DE/combined/OCI_M2/Low_vs_Con/"
+result_merge <- read.csv("./03_Result/2.DE/combined/OCI_M2/Low_vs_Con/DE_results.csv",row.names = 1)
+result_merge$VIP <- vip_scores
+write.csv(result_merge, file = paste0(dir_DE,"DE_results.csv"))
 
 ## 4.3 Volc Plot ----
 # change列因子化
@@ -247,22 +292,11 @@ p <- ggplot(data = result_merge, aes(x =logFC, y = -log10(pvalue))) +
   theme_bw() +
   theme(plot.title = element_text(hjust = 0.5),  # 标题居中
         aspect.ratio = 1.2)  # 设置纵横比，调整为更高
-
+print(p)
 ggsave(filename = paste0(dir_DE,"/volc.pdf"),
        plot = p, device = "pdf", 
        width = 6, height = 5)
-}
 
 # 5. KEGG GO -----------------------------------------------------------------
-GeneSymbol <- subset(result_merge,adj.P.Val< 0.05)
-# GeneSymbol$Genes <- GeneSymbol$GN
-y <- GeneSymbol$Genes
-gene <- unlist(lapply(y,function(y) strsplit(as.character(y),";")[[1]][1]))
 
-# 样本为人，OrgDb为Hs
-# 样本为小鼠，OrgDb为Mm
-run_enrichment_analysis(data = GeneSymbol,
-                        OrgDb = "Hs",
-                        dir = paste0("03_result/DE/",
-                                     group_1,"_vs_",group_2,"/"))
 
