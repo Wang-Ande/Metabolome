@@ -7,6 +7,7 @@ library(dplyr)
 library(openxlsx)
 library(pmp)
 library(mixOmics)
+
 # library(metaX)
 source("./02_Code/QC_PCA.R") 
 source("./02_Code/QC_boxplot.R")
@@ -18,8 +19,6 @@ source("./02_Code/run_DE.R")
 ## 1.1 Group input ----
 # 导入分组信息
 data_group <- read.xlsx("./01_Data/01.MetQuant/sam_infor_combined.xlsx")
-# data_group$id <- gsub("neg_","", data_group$id)            
-# data_group$id <- gsub("cas_","", data_group$id)
 data_group <- as.data.frame(data_group)
 
 # 配色设置 
@@ -313,19 +312,13 @@ library(org.Hs.eg.db)  # 人类数据库，其他物种可更换
 library(KEGGREST)
 library(pathview)
 
+# MetaboAnalyst 的 ID转换 https://www.metaboanalyst.ca  
+DE_result <- read.csv("./03_Result/2.DE/combined/MV4_11/Low_vs_Con/DE_results.csv",row.names = 1)
+Metabo_name <- DE_result[DE_result$change != "stable",c("Name","change")]
+write.xlsx(Metabo_name, file = "./03_Result/2.DE/combined/MV4_11/Low_vs_Con/Metabo_name.xlsx")
+
 # Metabolites list ----
-DE_res <- read.csv()
-
-
-
-
-metabolites <- c("C00031", "C00022", "C00024", "C00186", "C00049")  # 你的 KEGG ID 列表
+metabolites <- read.csv("./03_Result/2.DE/combined/MOLM13/High_vs_Con/name_map .csv")
 
 # Enrichment ----
-kegg_enrich <- enrichKEGG(gene = metabolites, 
-                          organism = "hsa",  # 人类
-                          keyType = "kegg",
-                          pvalueCutoff = 0.05,
-                          qvalueCutoff = 0.2)
-
-
+# 使用在线网站 https://www.metaboanalyst.ca 富集分析
