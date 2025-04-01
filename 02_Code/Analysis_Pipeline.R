@@ -161,7 +161,6 @@ targeted_group <- data_group[grep("OCI_M2",data_group$id),]
 targeted_group <- targeted_group[,c(1,3)]
 # colnames(targeted_group)[2] <- "group"
 
-#dir.create("./03_Result/DE/OCI_AML2")
 ## 4.1 Set group ---------------------------------------------------------------
 group_1 <- "High"        # treatment
 group_2 <- "Con"        # control
@@ -248,19 +247,15 @@ summary(vip_scores)
 # res output
 dir_DE <- "./03_Result/2.DE/combined/OCI_M2/High_vs_Con/"
 result_merge <- read.csv("./03_Result/2.DE/combined/OCI_M2/High_vs_Con/DE_results.csv",row.names = 1)
-result_merge$VIP <- vip_scores
-write.csv(result_merge, file = paste0(dir_DE,"DE_results.csv"))
-save(plsda_model, file = paste0(dir_DE,"plsda_model.rds"))
+result_merge$VIP <- vip_scores 
 
 # 将VIP<1 的change列改为 stable
-result_merge <- read.csv("./03_Result/2.DE/combined/OCI_M2/High_vs_Con/DE_results.csv",row.names = 1)
 table(result_merge$change)
 result_merge <- result_merge %>%
   mutate(change = ifelse(VIP < 1, "stable", change))
 table(result_merge$change)
 write.csv(result_merge, file = paste0(dir_DE,"DE_results.csv"))
-group_1 <- "High"        # treatment
-group_2 <- "Con"        # control
+save(plsda_model, file = paste0(dir_DE,"plsda_model.rds"))
 
 ## 4.3 Volc Plot ---------------------------------------------------------------
 # change列因子化
