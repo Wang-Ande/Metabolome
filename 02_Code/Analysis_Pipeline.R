@@ -6,7 +6,6 @@ library(readr)
 library(dplyr)
 library(openxlsx)
 library(pmp)
-library(mixOmics)
 
 # library(metaX)
 source("./02_Code/QC_PCA.R") 
@@ -32,7 +31,7 @@ rownames(data_group) <- data_group$id
 ## 1.2 meta matrix input ----
 data_input <- read.csv("./01_Data/01.MetQuant/meta_intensity_combined.csv",row.names = 1)
 data_input <- as.data.frame(data_input)
-colnames(data_input) <- gsub("neg_","", colnames(data_input)) # 去除样本id多余信息
+colnames(data_input) <- gsub("neg_","", colnames(data_input))   # 去除样本id多余信息
 colnames(data_input) <- gsub("cas_","", colnames(data_input))
 
 # 保留注释
@@ -162,14 +161,14 @@ targeted_group <- data_group[grep("OCI_M2",data_group$id),]
 table(targeted_group$group)
 
 #dir.create("./03_Result/DE/OCI_AML2")
-## 4.1 Set group ----
+## 4.1 Set group ---------------------------------------------------------------
 group_1 <- "Low"        # treatment
 group_2 <- "Con"        # control
 
 # 若选择wilcoxon检验，检查是否有平局值 
 anyDuplicated(data_input_norm)    # 结果大于0代表有
 
-## 4.1 LogFC & P-value ----
+## 4.1 LogFC & P-value ---------------------------------------------------------
 result_merge <- run_DE(data = data_filter,
                        data_group = targeted_group,
                        data_anno = data_anno,
@@ -184,7 +183,7 @@ result_merge <- run_DE(data = data_filter,
 # 统计上下调Meta个数
 table(result_merge$change)
 
-## 4.2 PLS-DA ----
+## 4.2 PLS-DA ------------------------------------------------------------------
 library(mixOmics)
 # Input Normalization Data
 # Data format:samples in rows and variables in columns.
@@ -204,7 +203,7 @@ Y <- factor(Y$group,levels = c("Con","Low"))
 dim(X); length(Y)
 summary(Y)
 
-# approach 1 mixOmics
+### 4.2.1 method 1 mixOmics ----------------------------------------------------
 # Initial exploration with PCA 
 pca <- pca(X, ncomp = 3, scale = TRUE)
 plotIndiv(pca, group = data_group$cell.line, ind.names = FALSE,
@@ -228,7 +227,7 @@ plotIndiv(final.plsda, ind.names = FALSE, legend=TRUE,
           title = 'PLS-DA',
           X.label = 'comp 1', Y.label = 'comp 2')
 
-# approach 2 ropls
+### 4.2.2 method 2 ropls -------------------------------------------------------
 library(ropls)
 # PLS-DA 分析
 set.seed(123)
@@ -261,7 +260,7 @@ write.csv(result_merge, file = paste0(dir_DE,"DE_results.csv"))
 group_1 <- "Low"        # treatment
 group_2 <- "Con"        # control
 
-## 4.3 Volc Plot ----
+## 4.3 Volc Plot ---------------------------------------------------------------
 # change列因子化
 result_merge$change <- factor(
   result_merge$change,
@@ -317,8 +316,8 @@ DE_result <- read.csv("./03_Result/2.DE/combined/MV4_11/Low_vs_Con/DE_results.cs
 Metabo_name <- DE_result[DE_result$change != "stable",c("Name","change")]
 write.xlsx(Metabo_name, file = "./03_Result/2.DE/combined/MV4_11/Low_vs_Con/Metabo_name.xlsx")
 
-# Metabolites list ----
+## Metabolites list ----
 metabolites <- read.csv("./03_Result/2.DE/combined/MOLM13/High_vs_Con/name_map .csv")
 
-# Enrichment ----
+## Enrichment ----
 # 使用在线网站 https://www.metaboanalyst.ca 富集分析
