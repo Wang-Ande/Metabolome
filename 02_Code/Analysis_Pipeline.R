@@ -244,8 +244,8 @@ vip_scores <- plsda_model@vipVn
 table(vip_scores > 1)
 summary(vip_scores)
 
-# res output
-dir_DE <- "./03_Result/2.DE/combined/OCI_M2/High_vs_Con/"
+## 4.3 Res output ---------------------------------------------------------------
+dir_DE <- "./03_Result/2.DE/combined/MOLM13/Low_vs_Con/"
 result_merge <- read.csv("./03_Result/2.DE/combined/OCI_M2/High_vs_Con/DE_results.csv",row.names = 1)
 result_merge$VIP <- vip_scores 
 
@@ -257,7 +257,12 @@ table(result_merge$change)
 write.csv(result_merge, file = paste0(dir_DE,"DE_results.csv"))
 save(plsda_model, file = paste0(dir_DE,"plsda_model.rds"))
 
-## 4.3 Volc Plot ---------------------------------------------------------------
+## 4.4 Volc Plot ---------------------------------------------------------------
+# data input 
+result_merge <- read.csv("./03_Result/2.DE/combined/MOLM13/Low_vs_Con/DE_results.csv",row.names = 1)
+
+group_1 <- "Low"        # treatment
+group_2 <- "Con"        # control
 # change列因子化
 result_merge$change <- factor(
   result_merge$change,
