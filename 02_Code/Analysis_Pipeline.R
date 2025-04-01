@@ -1,4 +1,5 @@
 # 0. Package&Function ----
+pak::pak("xia-lab/MetaboAnalystR")
 library(readxl)
 library(ggplot2)
 library(ggrepel)
@@ -337,14 +338,46 @@ library(clusterProfiler)
 library(org.Hs.eg.db)  # 人类数据库，其他物种可更换
 library(KEGGREST)
 library(pathview)
+library(MetaboAnalystR)
 
 # MetaboAnalyst 的 ID转换 https://www.metaboanalyst.ca  
-DE_result <- read.csv("./03_Result/2.DE/combined/MV4_11/Low_vs_Con/DE_results.csv",row.names = 1)
-Metabo_name <- DE_result[DE_result$change != "stable",c("Name","change")]
-write.xlsx(Metabo_name, file = "./03_Result/2.DE/combined/MV4_11/Low_vs_Con/Metabo_name.xlsx")
-
 ## Metabolites list ----
-metabolites <- read.csv("./03_Result/2.DE/combined/MOLM13/High_vs_Con/name_map .csv")
+DEM_result <- read.csv("./03_Result/2.DE/combined/MV4_11/Low_vs_Con/DE_results.csv",row.names = 1)
+Metabo_name <- DEM_result[DEM_result$change != "stable",c("Name","change")]
+write.xlsx(Metabo_name, file = "./03_Result/2.DE/combined/MV4_11/Low_vs_Con/DEM_name.xlsx")
+
+# 在线转换结果
+# metabolites <- read.csv("./03_Result/2.DE/combined/MOLM13/High_vs_Con/name_map .csv")
 
 ## Enrichment ----
-# 使用在线网站 https://www.metaboanalyst.ca 富集分析
+# 可以使用在线网站 https://www.metaboanalyst.ca 
+
+mSet<-InitDataObjects("conc", "msetora", FALSE)
+# 代谢物名称映射比对
+cmpd.vec<-Metabo_name$Name
+mSet<-Setup.MapData(mSet, cmpd.vec)
+mSet<-CrossReferencing(mSetObj = mSet, q.type = "name")
+mSet<-CreateMappingResultTable(mSet)
+mSet<-SetMetabolomeFilter(mSet, F)
+
+# 选择kegg数据库分析
+mSet<-SetCurrentMsetLib(mSet, libname = "kegg_pathway",excludeNum = 2)
+# 超几何检验
+mSet<-CalculateHyperScore(mSet)
+
+mSet<-PlotORA(mSet, "ora_0_", "net", "png", 72, width=NA)
+mSet<-PlotEnrichDotPlot(mSet, "ora", "ora_dot_0_", "png", 72, width=NA)
+mSet<-CalculateHyperScore(mSet)
+mSet<-PlotORA(mSet, "ora_1_", "net", "png", 72, width=NA)
+mSet<-PlotEnrichDotPlot(mSet, "ora", "ora_dot_1_", "png", 72, width=NA)
+mSet<-CalculateHyperScore(mSet)
+mSet<-PlotORA(mSet, "ora_2_", "net", "png", 72, width=NA)
+mSet<-PlotEnrichDotPlot(mSet, "ora", "ora_dot_2_", "png", 72, width=NA)
+mSet<-CalculateHyperScore(mSet)
+mSet<-PlotORA(mSet, "ora_3_", "net", "png", 72, width=NA)
+mSet<-PlotEnrichDotPlot(mSet, "ora", "ora_dot_3_", "png", 72, width=NA)
+mSet<-PlotORA(mSet, "ora_3_", "net", "pdf", 72, width=NA)
+mSet<-CalculateHyperScore(mSet)
+mSet<-PlotORA(mSet, "ora_4_", "net", "png", 72, width=NA)
+mSet<-PlotEnrichDotPlot(mSet, "ora", "ora_dot_4_", "png", 72, width=NA)
+mSet<-SaveTransformedData(mSet)
