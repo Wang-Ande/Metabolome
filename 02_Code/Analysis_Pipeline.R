@@ -20,14 +20,6 @@ source("./02_Code/run_DE.R")
 data_group <- read.xlsx("./01_Data/01.MetQuant/sam_infor_combined.xlsx")
 data_group <- as.data.frame(data_group)
 
-# 配色设置 
-value_colour <- c("High" = "#E64B35FF",
-                  "Low" = "#F2A200",
-                  "Con" = "#4DBBD5FA")
-                  #"QC" = "#8D8D8D"
-rownames(data_group) <- data_group$id
-
-
 ## 1.2 meta matrix input ----
 data_input <- read.csv("./01_Data/01.MetQuant/meta_intensity_combined.csv",row.names = 1)
 data_input <- as.data.frame(data_input)
@@ -35,10 +27,9 @@ colnames(data_input) <- gsub("neg_","", colnames(data_input))   # 去除样本id
 colnames(data_input) <- gsub("cas_","", colnames(data_input))
 
 # 保留注释
-data_anno <- data_input[,1:13]
+data_anno <- data_input[,1:12]
 data_anno <- as.data.frame(data_anno)
-data_input <- data_input[,-31]
-write.xlsx(data_anno,file = "./01_Data/meta_anno_combined.xlsx")
+write.xlsx(data_anno,file = "./01_Data/01.MetQuant/data_anno_pos.xlsx")
 data_anno <- read.xlsx("./01_Data/01.MetQuant/meta_anno_combined.xlsx",rowNames = TRUE)
 
 # 2. Normalization -----------------------------------------------------------
@@ -98,6 +89,13 @@ group_qc <- data_group[,c(1,3)]
 colnames(group_qc)[2] <- "group"
 group_qc <- group_qc[grep("OCI",group_qc$id),]
 
+# 配色设置 
+value_colour <- c("High" = "#E64B35FF",
+                  "Low" = "#F2A200",
+                  "Con" = "#4DBBD5FA")
+#"QC" = "#8D8D8D"
+rownames(data_group) <- data_group$id
+
 ## 3.1 Boxplot -----------------------------------------------------------------
 # 函数进行了log2
 pdf(file = paste0(dir_qc,"QC_boxplot_filter.pdf"),
@@ -144,8 +142,10 @@ print(ifelse(valid_ratio > 0.7, "检测体系稳定性良好", "检测体系稳�
 }
 
 # 去除QC样本中RSD超过30%的样本
-Good_metebo <- qc_metrics[qc_metrics$RSD <= 30,]
-data_filter <- data_input[rownames(Good_metebo),]
+Good_metabo <- qc_metrics[qc_metrics$RSD <= 30,]
+Bad_metaba <- data_anno[qc_metrics$RSD > 30,]
+View(Bad_metaba$Name)
+data_filter <- data_input[rownames(Good_metabo),]
 
 ## 3.5 Shapiro-Wilk ----
 # 对所有代谢物进行Shapiro-Wilk检验(判断是否满足正态性)
@@ -158,18 +158,19 @@ table(results_1<0.05)
 source("./02_Code/run_DE.R")
 table(data_group$group)
 targeted_group <- data_group[grep("OCI_M2",data_group$id),]
-table(targeted_group$group)
+targeted_group <- targeted_group[,c(1,3)]
+# colnames(targeted_group)[2] <- "group"
 
 #dir.create("./03_Result/DE/OCI_AML2")
 ## 4.1 Set group ---------------------------------------------------------------
-group_1 <- "Low"        # treatment
+group_1 <- "High"        # treatment
 group_2 <- "Con"        # control
 
 # 若选择wilcoxon检验，检查是否有平局值 
-anyDuplicated(data_input_norm)    # 结果大于0代表有
+anyDuplicated(data_input)    # 结果大于0代表有
 
 ## 4.1 LogFC & P-value ---------------------------------------------------------
-result_merge <- run_DE(data = data_filter,
+result_merge <- run_DE(data = data_input,
                        data_group = targeted_group,
                        data_anno = data_anno,
                        group_1 = group_1,group_2 = group_2,
@@ -184,26 +185,26 @@ result_merge <- run_DE(data = data_filter,
 table(result_merge$change)
 
 ## 4.2 PLS-DA ------------------------------------------------------------------
-library(mixOmics)
 # Input Normalization Data
 # Data format:samples in rows and variables in columns.
 # X: gene expression matrix 
 # Y: factor indicating sample class membership
 
-# load data
-X <- read.csv("./03_Result/2.DE/combined/OCI_M2/Low_vs_Con/DE_results.csv",row.names = 1)
-X <- X[,grep("OCI_M2_WT|OCI_M2_2W|OCI_M2_4W",colnames(X))]
+### 4.2.1 load data ----
+X <- read.csv("./03_Result/2.DE/combined/OCI_M2/High_vs_Con/DE_results.csv",row.names = 1)
+X <- X[,grep("_WT|_6W",colnames(X))]
 X <- t(X)
 X <- log2(X)
 
-Y <- targeted_group[grep("Con|Low",targeted_group$group),]
-Y <- factor(Y$group,levels = c("Con","Low"))
+Y <- targeted_group[grep("Con|High",targeted_group$group),]
+Y <- factor(Y$group,levels = c("Con","High"))
 
 # check
 dim(X); length(Y)
 summary(Y)
 
-### 4.2.1 method 1 mixOmics ----------------------------------------------------
+### 4.2.2 method 1 mixOmics ----------------------------------------------------
+library(mixOmics)
 # Initial exploration with PCA 
 pca <- pca(X, ncomp = 3, scale = TRUE)
 plotIndiv(pca, group = data_group$cell.line, ind.names = FALSE,
@@ -227,12 +228,12 @@ plotIndiv(final.plsda, ind.names = FALSE, legend=TRUE,
           title = 'PLS-DA',
           X.label = 'comp 1', Y.label = 'comp 2')
 
-### 4.2.2 method 2 ropls -------------------------------------------------------
+### 4.2.3 method 2 ropls -------------------------------------------------------
 library(ropls)
 # PLS-DA 分析
 set.seed(123)
-plsda_model <- opls(X, Y, predI = 2, crossvalI = 7, permI = 200,scaleC = "pareto")
-
+plsda_model <- opls(X, Y, predI = 2, crossvalI = 5, permI = 200, scaleC = "pareto")
+# scaleC = c("pareto","center","standard","none")
 # PLS-DA
 # 5 samples x 1120 variables and 1 response
 # standard scaling of predictors and response(s)
@@ -245,19 +246,20 @@ table(vip_scores > 1)
 summary(vip_scores)
 
 # res output
-dir_DE <- "./03_Result/2.DE/combined/OCI_M2/Low_vs_Con/"
-result_merge <- read.csv("./03_Result/2.DE/combined/OCI_M2/Low_vs_Con/DE_results.csv",row.names = 1)
+dir_DE <- "./03_Result/2.DE/combined/OCI_M2/High_vs_Con/"
+result_merge <- read.csv("./03_Result/2.DE/combined/OCI_M2/High_vs_Con/DE_results.csv",row.names = 1)
 result_merge$VIP <- vip_scores
 write.csv(result_merge, file = paste0(dir_DE,"DE_results.csv"))
+save(plsda_model, file = paste0(dir_DE,"plsda_model.rds"))
 
 # 将VIP<1 的change列改为 stable
-result_merge <- read.csv("./03_Result/2.DE/combined/OCI_M2/Low_vs_Con/DE_results.csv",row.names = 1)
+result_merge <- read.csv("./03_Result/2.DE/combined/OCI_M2/High_vs_Con/DE_results.csv",row.names = 1)
 table(result_merge$change)
 result_merge <- result_merge %>%
   mutate(change = ifelse(VIP < 1, "stable", change))
 table(result_merge$change)
 write.csv(result_merge, file = paste0(dir_DE,"DE_results.csv"))
-group_1 <- "Low"        # treatment
+group_1 <- "High"        # treatment
 group_2 <- "Con"        # control
 
 ## 4.3 Volc Plot ---------------------------------------------------------------
@@ -276,7 +278,8 @@ logfc_threshold <- 0.263
 pvalue_threshold <- 0.05
 
 p <- ggplot(data = result_merge, aes(x =logFC, y = -log10(pvalue))) +
-  geom_point(alpha = 0.5, aes(color = change, size = VIP )) +
+  geom_point(aes(color = change, size = VIP),  
+             alpha = 0.6, shape = 16) +
   ylab("-log10(Pvalue)")+
   # 按因子顺序指定颜色
   scale_color_manual(
@@ -286,9 +289,9 @@ p <- ggplot(data = result_merge, aes(x =logFC, y = -log10(pvalue))) +
       "stable" = "grey",     # 灰
       "down" = "#003366"),    # 蓝,
     labels = c(                                  # 显示上下调的个数
-      "up" = paste0("Up ：", sum(result_merge$change == "up")),
-      "stable" = paste0("Stable ：", sum(result_merge$change == "stable")),
-      "down" = paste0("Down ：", sum(result_merge$change == "down"))))+
+      "up" = paste0("Up:", sum(result_merge$change == "up")),
+      "stable" = paste0("Stable:", sum(result_merge$change == "stable")),
+      "down" = paste0("Down:", sum(result_merge$change == "down"))))+
   scale_size_continuous(name = "VIP",        # 为 size 变量添加图例标题
                         range = c(1, 6))+    # 设置点的大小范围，可以根据需要调整
   geom_vline(xintercept = c(-logfc_threshold, logfc_threshold), lty = 4, 
@@ -298,11 +301,35 @@ p <- ggplot(data = result_merge, aes(x =logFC, y = -log10(pvalue))) +
   labs(title = paste0(group_1,"-",group_2)) +
   xlim(-x_limit, x_limit)+
   theme_bw() +
+  guides(color = guide_legend(order = 1), size = guide_legend(order = 2)) +
   theme(plot.title = element_text(hjust = 0.5),  # 标题居中
-        aspect.ratio = 1.2)  # 设置纵横比，调整为更高
+        aspect.ratio = 1.2,                      # 设置纵横比，调整为更高
+        axis.title = element_text(size = 12, face = "plain"),  # 轴标题加粗，字号14
+        # 图例标题 
+        legend.title = element_text(
+          family = "serif",        # 字体类型（如serif衬线体）
+          size = 12,               # 字体大小
+          face = "bold",           # 加粗
+          color = "#333333",       # 深灰色
+          margin = margin(b = 5)   # 标题与标签的间距
+        ),
+        
+        # 图例标签 
+        legend.text = element_text(
+          family = "sans",         # 无衬线字体（如Arial）
+          size = 11,               
+          color = "#666666",       # 中灰色
+          margin = margin(r = 10)  # 标签右侧间距
+        ),
+        
+        # 整体布局 
+        legend.position = "right",
+        legend.spacing.y = unit(0.3, "cm"),  # 图例项垂直间距
+        legend.key.size = unit(0.8, "cm"),   # 图例符号大小
+        legend.background = element_rect(fill = "white", color = NA))  # 背景优化  
 print(p)
 ggsave(filename = paste0(dir_DE,"/volc.pdf"),
-       plot = p, device = "pdf", 
+       plot = p, device = cairo_pdf, 
        width = 6, height = 5)
 
 # 5. KEGG GO -----------------------------------------------------------------
