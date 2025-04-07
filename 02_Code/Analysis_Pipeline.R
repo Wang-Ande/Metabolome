@@ -340,44 +340,41 @@ library(KEGGREST)
 library(pathview)
 library(MetaboAnalystR)
 
-# MetaboAnalyst 的 ID转换 https://www.metaboanalyst.ca  
-## Metabolites list ----
-DEM_result <- read.csv("./03_Result/2.DE/combined/MV4_11/Low_vs_Con/DE_results.csv",row.names = 1)
-Metabo_name <- DEM_result[DEM_result$change != "stable",c("Name","change")]
-write.xlsx(Metabo_name, file = "./03_Result/2.DE/combined/MV4_11/Low_vs_Con/DEM_name.xlsx")
+# MetaboAnalyst操作建议在在线网站上操作，本地也需要连接服务器，且不稳定
+# 本地通路富集用Clusterprofiler包，需要提供背景代谢物集
 
-# 在线转换结果
-# metabolites <- read.csv("./03_Result/2.DE/combined/MOLM13/High_vs_Con/name_map .csv")
+# load data
+DEM_result <- read.csv("./03_Result/2.DE/combined/OCI_M2/High_vs_Con/DE_results.csv",row.names = 1)
+BGM <- DEM_result[,c("Name","change")]
+DEM <- DEM_result[DEM_result$change != "stable",c("Name","change")]
+write.xlsx(DEM, file = "./03_Result/2.DE/combined/OCI_M2/High_vs_Con/DEM_name.xlsx")
+write.xlsx(BGM,file = "./03_Result/2.DE/combined/BGM_name.xlsx")
+
+# MetaboAnalyst 的ID转换 or 在线网站 https://www.metaboanalyst.ca  
+# mSet<-InitDataObjects("conc", "msetora", FALSE)
+# cmpd.vec<-DEM_result$Name
+# mSet<-Setup.MapData(mSet, cmpd.vec)
+# mSet<-CrossReferencing(mSetObj = mSet, q.type = "name", hmdb = T, pubchem = T, kegg = T)
+ mSet<-CreateMappingResultTable(mSet)
+# mSet<-SetMetabolomeFilter(mSet, F)
+
+## BgM list ---- 
+BGM_map <- mSet$dataSet$map.table
+BGM <- as.data.frame(BGM)
+
+## DEM list ----
+DEM_map <- read.csv("./03_Result/2.DE/combined/OCI_M2/High_vs_Con/name_map.csv")
+pathway <- pathway[,c("PathwayName","Metabolite")]
+
 
 ## Enrichment ----
 # 可以使用在线网站 https://www.metaboanalyst.ca 
-
-mSet<-InitDataObjects("conc", "msetora", FALSE)
-# 代谢物名称映射比对
-cmpd.vec<-Metabo_name$Name
-mSet<-Setup.MapData(mSet, cmpd.vec)
-mSet<-CrossReferencing(mSetObj = mSet, q.type = "name")
-mSet<-CreateMappingResultTable(mSet)
-mSet<-SetMetabolomeFilter(mSet, F)
-
-# 选择kegg数据库分析
-mSet<-SetCurrentMsetLib(mSet, libname = "kegg_pathway",excludeNum = 2)
-# 超几何检验
-mSet<-CalculateHyperScore(mSet)
-
-mSet<-PlotORA(mSet, "ora_0_", "net", "png", 72, width=NA)
-mSet<-PlotEnrichDotPlot(mSet, "ora", "ora_dot_0_", "png", 72, width=NA)
-mSet<-CalculateHyperScore(mSet)
-mSet<-PlotORA(mSet, "ora_1_", "net", "png", 72, width=NA)
-mSet<-PlotEnrichDotPlot(mSet, "ora", "ora_dot_1_", "png", 72, width=NA)
-mSet<-CalculateHyperScore(mSet)
-mSet<-PlotORA(mSet, "ora_2_", "net", "png", 72, width=NA)
-mSet<-PlotEnrichDotPlot(mSet, "ora", "ora_dot_2_", "png", 72, width=NA)
-mSet<-CalculateHyperScore(mSet)
-mSet<-PlotORA(mSet, "ora_3_", "net", "png", 72, width=NA)
-mSet<-PlotEnrichDotPlot(mSet, "ora", "ora_dot_3_", "png", 72, width=NA)
-mSet<-PlotORA(mSet, "ora_3_", "net", "pdf", 72, width=NA)
-mSet<-CalculateHyperScore(mSet)
-mSet<-PlotORA(mSet, "ora_4_", "net", "png", 72, width=NA)
-mSet<-PlotEnrichDotPlot(mSet, "ora", "ora_dot_4_", "png", 72, width=NA)
-mSet<-SaveTransformedData(mSet)
+# 富集分析
+kegg_res <- clusterProfiler::enricher(gene = DEM_map$KEGG,
+                                      TERM2GENE = pathway,
+                                      minGSSize = 1,
+                                      pvalueCutoff = 1,
+                                      qvalueCutoff = 1)
+# 结果导出
+write.csv(as.data.frame(x@result) %>% select(-1,-2),
+          file = paste0(uploadfile2,"/MP_KEGG_enrichment_result.csv"))
