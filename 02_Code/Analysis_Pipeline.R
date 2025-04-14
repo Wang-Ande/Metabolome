@@ -7,8 +7,6 @@ library(readr)
 library(dplyr)
 library(openxlsx)
 library(pmp)
-
-# library(metaX)
 source("./02_Code/QC_PCA.R") 
 source("./02_Code/QC_boxplot.R")
 source("./02_Code/QC_heatmap.R")
