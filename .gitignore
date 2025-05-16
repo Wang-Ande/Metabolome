@@ -2,3 +2,12 @@
 .Rhistory
 .RData
 .Ruserdata
+
+# 忽略特定文件夹
+01_Data/
+03_Result/
+
+# 忽略特定拓展名的文件
+*.qs
+*.csv
+*.csv
