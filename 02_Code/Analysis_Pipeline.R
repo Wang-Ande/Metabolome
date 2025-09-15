@@ -181,6 +181,10 @@ result_merge <- run_DE(data = data_input,
                        dir = "03_result/2.DE/combined/OCI_M2/") # 每次需要更改
 # 统计上下调Meta个数
 table(result_merge$change)
+# 导出差异代谢物列表
+DE_Metabolite <- read.csv('./03_Result/2.DE/combined/MOLM13/High_vs_Con/DE_results.csv')
+DE_Metabolite <- DE_Metabolite[,c("Name","logFC","pvalue","qvalue","change")]
+write.xlsx(DE_Metabolite, file = "./03_Result/2.DE/combined/MOLM13/High_vs_Con/DE_Metabolite_Names.xlsx")
 
 ## 4.2 PLS-DA ------------------------------------------------------------------
 # Input Normalization Data
