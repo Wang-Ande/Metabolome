@@ -5,8 +5,6 @@ run_DE <- function(data, data_group, data_anno=NULL, group_1, group_2, log2,
   library(fdrtool)
   library(dplyr)
   library(ggplot2)
-  library(pheatmap)
-  library(mixOmics)
   if (!all(c("id", "group") %in% colnames(data_group)))
     stop("data_group must contain 'id' and 'group' columns")
   if (!all(group_1 %in% data_group$group) || !all(group_2 %in% data_group$group))
@@ -131,6 +129,34 @@ run_DE <- function(data, data_group, data_anno=NULL, group_1, group_2, log2,
   message("Writing results to file...")
   write.csv(result_df, file = file.path(output_dir, "DE_results.csv"))
   
+  # --- 生成报告 TXT ----
+  up_count <- sum(result_df$change == "up", na.rm = TRUE)
+  down_count <- sum(result_df$change == "down", na.rm = TRUE)
+  stable_count <- sum(result_df$change == "stable", na.rm = TRUE)
+  total_genes <- nrow(result_df)
+  
+  report_text <- c(
+    "===== Differential Expression Analysis Report =====",
+    paste("Date:", format(Sys.time(), "%Y-%m-%d %H:%M:%S")),
+    paste("Comparison:", group_1, "vs", group_2),
+    paste("Test method:", test_method),
+    paste("Paired test:", paired),
+    paste("Log2 transform:", log2),
+    paste("logFC threshold:", logfc_threshold),
+    paste("P-value threshold:", pvalue_threshold),
+    paste("Q-value threshold:", ifelse(is.null(qvalue_threshold), "NA", qvalue_threshold)),
+    "---------------------------------------------------",
+    paste("Total genes analyzed:", total_genes),
+    paste("Up-regulated genes:", up_count),
+    paste("Down-regulated genes:", down_count),
+    paste("Stable genes:", stable_count),
+    "---------------------------------------------------",
+    paste("Output directory:", output_dir),
+    "==================================================="
+  )
+  
+  writeLines(report_text, file.path(output_dir, "DE_report.txt"))
+  message("Analysis report saved to DE_report.txt")
   
   return(result_df)
 }
