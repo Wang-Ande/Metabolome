@@ -1,5 +1,5 @@
 # 0. Package&Function ----
-pak::pak("xia-lab/MetaboAnalystR")
+# pak::pak("xia-lab/MetaboAnalystR")
 library(readxl)
 library(ggplot2)
 library(ggrepel)
@@ -156,7 +156,9 @@ table(results_1<0.05)
 # 根据分组选择要进行差异分析的组别
 source("./02_Code/run_DE.R")
 table(data_group$group)
-targeted_group <- data_group[grep("OCI_M2",data_group$id),]
+targeted_group <- data_group[grep("MV4",data_group$id),]
+# mv4_11删除6w_1
+targeted_group <- targeted_group[-grep("MV4_11_6W_1",targeted_group$id),]
 targeted_group <- targeted_group[,c(1,3)]
 # colnames(targeted_group)[2] <- "group"
 
@@ -178,13 +180,13 @@ result_merge <- run_DE(data = data_input,
                        qvalue_threshold = NULL,
                        test_method = "t-test",     # "t-test" or "wilcoxon"
                        paired = FALSE ,            # 是否配对检验，TRUE or FALSE 必须为逻辑值
-                       dir = "03_result/2.DE/combined/OCI_M2/") # 每次需要更改
+                       dir = "03_result/2.DE/combined/MV4_11/") # 每次需要更改
 # 统计上下调Meta个数
 table(result_merge$change)
 # 导出差异代谢物列表
-DE_Metabolite <- read.csv('./03_Result/2.DE/combined/MOLM13/High_vs_Con/DE_results.csv')
+DE_Metabolite <- read.csv('./03_Result/2.DE/combined/MV4_11/High_vs_Con/DE_results.csv')
 DE_Metabolite <- DE_Metabolite[,c("Name","logFC","pvalue","qvalue","change")]
-write.xlsx(DE_Metabolite, file = "./03_Result/2.DE/combined/MOLM13/High_vs_Con/DE_Metabolite_Names.xlsx")
+write.xlsx(DE_Metabolite, file = "./03_Result/2.DE/combined/MV4_11/High_vs_Con/DE_Metabolite_Names.xlsx")
 
 ## 4.2 PLS-DA ------------------------------------------------------------------
 # Input Normalization Data
@@ -193,7 +195,7 @@ write.xlsx(DE_Metabolite, file = "./03_Result/2.DE/combined/MOLM13/High_vs_Con/D
 # Y: factor indicating sample class membership
 
 ### 4.2.1 load data ----
-X <- read.csv("./03_Result/2.DE/combined/OCI_M2/High_vs_Con/DE_results.csv",row.names = 1)
+X <- read.csv("./03_Result/2.DE/combined/MV4_11/High_vs_Con/DE_results.csv",row.names = 1)
 X <- X[,grep("_WT|_6W",colnames(X))]
 X <- t(X)
 X <- log2(X)
@@ -239,8 +241,8 @@ plsda_model <- opls(X, Y, predI = 2, crossvalI = 5, permI = 200, scaleC = "paret
 # PLS-DA
 # 5 samples x 1120 variables and 1 response
 # standard scaling of predictors and response(s)
-# R2X(cum) R2Y(cum) Q2(cum)   RMSEE pre ort  pR2Y   pQ2
-# Total    0.645        1   0.966 0.00685   2   0 0.355 0.135
+#          R2X(cum) R2Y(cum) Q2(cum)   RMSEE pre ort  pR2Y   pQ2
+# Total    0.645    1        0.966     0.00685   2   0 0.355 0.135
 
 # 提取 VIP 值
 vip_scores <- plsda_model@vipVn
@@ -248,8 +250,8 @@ table(vip_scores > 1)
 summary(vip_scores)
 
 ## 4.3 Res output ---------------------------------------------------------------
-dir_DE <- "./03_Result/2.DE/combined/MOLM13/Low_vs_Con/"
-result_merge <- read.csv("./03_Result/2.DE/combined/OCI_M2/High_vs_Con/DE_results.csv",row.names = 1)
+dir_DE <- "./03_Result/2.DE/combined/MV4_11/High_vs_Con/"
+result_merge <- read.csv("./03_Result/2.DE/combined/MV4_11/High_vs_Con/DE_results.csv",row.names = 1)
 result_merge$VIP <- vip_scores 
 
 # 将VIP<1 的change列改为 stable
@@ -262,9 +264,9 @@ save(plsda_model, file = paste0(dir_DE,"plsda_model.rds"))
 
 ## 4.4 Volc Plot ---------------------------------------------------------------
 # data input 
-result_merge <- read.csv("./03_Result/2.DE/combined/MOLM13/Low_vs_Con/DE_results.csv",row.names = 1)
+result_merge <- read.csv("./03_Result/2.DE/combined/MV4_11/High_vs_Con/DE_results.csv",row.names = 1)
 
-group_1 <- "Low"        # treatment
+group_1 <- "High"        # treatment
 group_2 <- "Con"        # control
 # change列因子化
 result_merge$change <- factor(
